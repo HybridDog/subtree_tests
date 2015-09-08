@@ -33,7 +33,7 @@ local chest_stuff = {
 minetest.register_node("ruins:chest", {
 	description = "Old Chest",
 	tiles = {"ruins_chest_top.png", "ruins_chest_top.png", "ruins_chest_side.png",
-		 "ruins_chest_side.png", "ruins_chest_side.png", "ruins_chest_front.png"},
+			"ruins_chest_side.png", "ruins_chest_side.png", "ruins_chest_front.png"},
 	paramtype2 = "facedir",
 	groups = {choppy = default.dig.old_chest},
 	legacy_facedir_simple = true,
@@ -57,25 +57,22 @@ if not default.chest_formspec then
 end]]
 
 local function fill_chest(pos)
-	minetest.set_node(pos, {name="ruins:chest", metadata=""})
+	minetest.set_node(pos, {name="ruins:chest"})
 	minetest.after(2, function()
-		local n = minetest.get_node(pos)
+		if minetest.get_node(pos).name ~= "ruins:chest" then
+			return
+		end
 		local cnt = 0
-		if n ~= nil then
-			if n.name == "ruins:chest" then
-				local meta = minetest.get_meta(pos)
-				local inv = meta:get_inventory()
-				inv:set_size("main", 8*4)
-				while cnt < 2 do
-					local stuff = chest_stuff[math.random(1, #chest_stuff)]
-					local stack = {name=stuff.name, count = 1}
-					if math.random(1, stuff.rarity) == stuff.rarity then
-						if not inv:contains_item("main", stack) then
-							inv:set_stack("main", math.random(1, 32), stack)
-							cnt = cnt + 1
-						end
-					end
-				end -- end while
+		local meta = minetest.get_meta(pos)
+		local inv = meta:get_inventory()
+		inv:set_size("main", 8*4)
+		while cnt < 2 do
+			local stuff = chest_stuff[math.random(1,#chest_stuff)]
+			local stack = {name=stuff.name, count = 1}
+			if math.random(1,stuff.rarity) == stuff.rarity
+			and not inv:contains_item("main", stack) then
+				inv:set_stack("main", math.random(1,32), stack)
+				cnt = cnt+1
 			end
 		end
 	end)
@@ -83,21 +80,18 @@ end
 
 local function fill_grave(pos)
 	minetest.after(2, function()
-		local n = minetest.get_node(pos)
 		local cnt = 0
-		if n ~= nil then
-			local meta = minetest.get_meta(pos)
-			meta:set_string("formspec",frm)
-			local inv = meta:get_inventory()
-			inv:set_size("main", 8*4)
-			while cnt < 1 do
-				local stuff = chest_stuff[math.random(1, #chest_stuff)]
-				local stack = {name=stuff.name, count = 1}
-				if math.random(1, stuff.rarity) == stuff.rarity then
-					inv:set_stack("main", math.random(1, 32), stack)
-					cnt = cnt + 1
-				end
-			end -- end while
+		local meta = minetest.get_meta(pos)
+		meta:set_string("formspec",frm)
+		local inv = meta:get_inventory()
+		inv:set_size("main", 8*4)
+		while cnt < 1 do
+			local stuff = chest_stuff[math.random(1,#chest_stuff)]
+			local stack = {name=stuff.name, count = 1}
+			if math.random(1,stuff.rarity) == stuff.rarity then
+				inv:set_stack("main", math.random(1,32), stack)
+				cnt = cnt+1
+			end
 		end
 	end)
 end
@@ -105,12 +99,7 @@ end
 
 local function can_replace(pos)
 	local n = minetest.get_node_or_nil(pos)
-	local ndef = minetest.registered_nodes[n.name]
-	if (ndef and not ndef.walkable) or not n then
-		return true
-	else
-		return false
-	end
+	return not n or not minetest.registered_nodes[n.name].walkable
 end
 
 
@@ -118,101 +107,94 @@ local function ground(pos)
 	local p = table.copy(pos)
 	local cnt = 0
 	local mat = "dirt"
-	p.y = p.y - 1
-	while can_replace(p) == true do
-		cnt = cnt + 1
-		if cnt > 25 then
-			break
-		end
-		if cnt>math.random(2, 4) then
+	p.y = p.y-1
+	while can_replace(p) and cnt < 25 do
+		cnt = cnt+1
+		if cnt > math.random(2,4) then
 			mat = "stone"
 		end
-		minetest.swap_node(p, {name = "default:" .. mat})
-		p.y = p.y - 1
+		minetest.swap_node(p, {name="default:"..mat})
+		p.y = p.y-1
 	end
 end
 
 local function door(pos, size)
-	local p = table.copy(pos)
-	p.y = p.y + 1
-	if math.random() > 0 then
-		if math.random() > 0 then
-			p.x = p.x + size.x
+	local pos = vector.new(pos)
+	pos.y = pos.y+1
+	local change_both = math.random(2) == 1
+	if math.random(2) == 1 then
+		if change_both then
+			pos.x = pos.x+size.x
 		end
-			p.z = p.z + math.random(1, size.z - 1)
+		pos.z = pos.z + math.random(1,size.z-1)
 	else
-		if math.random() > 0 then
-			p.z = p.z + size.z
+		if change_both then
+			pos.z = pos.z+size.z
 		end
-		p.x = p.x + math.random(1, size.x - 1)
+		pos.x = pos.x + math.random(1,size.x-1)
 	end
-	minetest.remove_node(p)
-	p.y = p.y + 1
-	minetest.remove_node(p)
+	minetest.remove_node(pos)
+	pos.y = pos.y + 1
+	minetest.remove_node(pos)
 end
 
 local function keller(pos, size)
-	for yi = 1, 4 do
-		local w_h = math.random(3, 4)
-		for xi = 1, size.x - 1 do
-		for zi = 1, size.z - 1 do
-			local p = {x = pos.x + xi, y = pos.y - yi, z = pos.z + zi}
-			if yi < w_h then
-				minetest.remove_node(p)
-			else
-				minetest.swap_node(p, {name = "default:water_source"})
+	for yi = 1,4 do
+		local remove = yi < math.random(3,4)
+		for xi = 1,size.x-1 do
+			for zi = 1,size.z-1 do
+				local p = {x=pos.x+xi, y=pos.y-yi, z=pos.z+zi}
+				if remove then
+					minetest.remove_node(p)
+				else
+					minetest.swap_node(p, {name="default:water_source"})
+				end
 			end
-		end
 		end
 	end
 end
 
-local material = {}
-material[1] = "cobble"
-material[2] = "mossycobble"
-material[3] = "glass"
+local material = {"cobble", "mossycobble", "glass"}
 
 local function generate_sized(pos, size)
-	local wood = false
-	if math.random(1, 10) > 8 then
-		wood = true
+	local new
+	if math.random(1,10) > 8 then
+		new = "wood"
 	end
- 	for yi = 0, 4 do
-	for xi = 0, size.x do
-	for zi = 0, size.z do
-		local p = {x = pos.x + xi, y = pos.y + yi, z = pos.z + zi}
-		if yi == 0 then
-			minetest.swap_node(p, {name = "default:" .. material[math.random(1, 2)]})
-			minetest.after(1, ground, p)
-		else
-			if xi < 1 or xi > size.x - 1 or zi < 1 or zi > size.z - 1 then
-				if math.random(1, yi) == 1 then
-					local mat = "wood"
-					if not wood then
-						new = material[math.random(1, 2)]
-					end
-					if yi == 2 and math.random(1, 10) == 3 then
-						mat = "glass"
-					end
-					p.y = p.y - 1
-					local n = minetest.get_node_or_nil(p)
-					p.y = p.y + 1
-					if n and n.name ~= "air" then
-						minetest.swap_node(p, {name = "default:" .. mat})
+	for yi = 0,4 do
+		for xi = 0,size.x do
+			for zi = 0,size.z do
+				if yi == 0 then
+					local p = {x=pos.x+xi, y=pos.y, z=pos.z+zi}
+					minetest.swap_node(p, {name="default:"..material[math.random(1,2)]})
+					minetest.after(1, ground, p)
+				else
+					if xi < 1 or xi > size.x-1 or zi<1 or zi>size.z-1 then
+						if math.random(1,yi) == 1 then
+							local n = minetest.get_node_or_nil({x=pos.x+xi, y=pos.y+yi-1, z=pos.z+zi})
+							if n
+							and n.name ~= "air" then
+								local new = new
+								if yi == 2
+								and math.random(1,10) == 3 then
+									new = "glass"
+								elseif not new then
+									new = material[math.random(2)]
+								end
+								minetest.swap_node({x=pos.x+xi, y=pos.y+yi, z=pos.z+zi}, {name="default:"..new})
+							end
+						end
+					else
+						minetest.remove_node({x=pos.x+xi, y=pos.y+yi, z=pos.z+zi})
 					end
 				end
-			else
-				minetest.remove_node(p)
 			end
 		end
 	end
-	end
-	end
 
-	if math.random(0, 10) > 7 then
-		minetest.after(2, keller, pos, size)
+	if math.random(11) > 8 then
+		minetest.after(2,keller, {x=pos.x, y=pos.y, z=pos.z}, size)
 	end
-
 	fill_chest({
 		x = pos.x + math.random(1, size.x - 1),
 		y = pos.y + 1,
@@ -222,10 +204,10 @@ local function generate_sized(pos, size)
 end
 
 local function generate_coffin(pos)
-	minetest.add_node(pos, {name = "coffin:coffin"})
+	minetest.add_node(pos, {name = "coffin:coffin"})--"bones:bones"
 	fill_grave({x=pos.x,y=pos.y,z=pos.z})
 	pos.y = pos.y + 1
-	minetest.swap_node(pos, {name = "coffin:gravestone"})
+	minetest.swap_node(pos, {name = "coffin:gravestone"})--"bones:gravestone"
 end
 
 
@@ -241,45 +223,34 @@ local function set_seed(seed)
 end
 
 minetest.register_on_generated(function(minp, maxp, seed)
-	if maxp.y < 0 or (math.random(0, 10) < 8) then
+	if maxp.y < 0
+	or math.random(11) < 9 then
 		return
 	end
-
 	set_seed(seed)
 
-	local noise = perlin:get2d({x = minp.x, y = minp.y})--,z=minp.z})
-
-	if noise < 0.36 or noise > -0.36 then
-		local mpos = {
-			x = math.random(minp.x, maxp.x),
-			y = math.random(minp.y, maxp.y),
-			z = math.random(minp.z, maxp.z)
-		}
+	local noise = perlin:get2d({x=minp.x,y=minp.y})--,z=minp.z})
+	if math.abs(noise) < 0.36 then
+		local mpos = {x=math.random(minp.x,maxp.x), y=math.random(minp.y,maxp.y), z=math.random(minp.z,maxp.z)}
 		minetest.after(0.1, function()
 			local point = minetest.find_node_near(mpos, 25, {"default:dry_dirt"})
-			if not point or point == nil or point.y < 0 then
+			if not point
+			or point.y < 0 then
 				return
 			end
-
 			generate_sized(point, {x = math.random(6, 9), z = math.random(6, 9)})
 		end)
-	end
-
-	if noise < -0.45 or noise > 0.45 then
-		local mpos = {
-			x = math.random(minp.x, maxp.x),
-			y = math.random(minp.y, maxp.y),
-			z = math.random(minp.z, maxp.z)
-		}
+	elseif math.abs(noise1) > 0.45 then
+		local mpos = {x=math.random(minp.x,maxp.x), y=math.random(minp.y,maxp.y), z=math.random(minp.z,maxp.z)}
 		minetest.after(0.1, function()
 			local point = minetest.find_node_near(mpos, 25, {"default:dry_dirt"})
-			if not point or point == nil or point.y < 0 then
+			if not point
+			or point.y < 0 then
 				return
 			end
-			point.y = point.y + 1
-			local n = minetest.get_node(point)
-			point.y = point.y - 1
-			if n and n.name and n.name == "air" then
+			point.y = point.y+1
+			if minetest.get_node(point).name == "air" then
+				point.y = point.y-1
 				generate_coffin(point)
 			end
 		end)
